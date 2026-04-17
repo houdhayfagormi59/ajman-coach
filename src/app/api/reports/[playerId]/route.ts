@@ -26,16 +26,18 @@ export async function GET(_: NextRequest, { params }: { params: { playerId: stri
   const coachName = cR.data?.full_name || user.email || 'Coach';
   const generatedAt = new Date().toLocaleString('en-GB');
 
-  const stream = await renderToStream(
-    <PlayerReport
-      player={player}
-      injuries={injuries}
-      performances={performances}
-      evaluation={evaluation}
-      coachName={coachName}
-      generatedAt={generatedAt}
-    />
-  );
+  import React from 'react';
+
+const stream = await renderToStream(
+  React.createElement(PlayerReport, {
+    player,
+    injuries,
+    performances,
+    evaluation,
+    coachName,
+    generatedAt,
+  })
+);
 
   const chunks: Buffer[] = [];
   for await (const chunk of stream as unknown as AsyncIterable<Buffer>) chunks.push(chunk);
