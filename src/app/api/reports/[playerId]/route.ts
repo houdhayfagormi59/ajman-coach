@@ -1,4 +1,3 @@
-import React from 'react';
 import { NextRequest, NextResponse } from 'next/server';
 import { renderToStream } from '@react-pdf/renderer';
 import { createClient } from '@/lib/supabase/server';
@@ -20,49 +19,30 @@ export async function GET(
 
   const [pR, iR, perfR, eR, cR] = await Promise.all([
     supabase.from('players').select('*').eq('id', params.playerId).single(),
-    supabase
-      .from('injuries')
-      .select('*')
-      .eq('player_id', params.playerId)
-      .order('injury_date', { ascending: false }),
-    supabase
-      .from('performances')
-      .select('*')
-      .eq('player_id', params.playerId)
-      .order('match_date', { ascending: false }),
-    supabase
-      .from('evaluations')
-      .select('*')
-      .eq('player_id', params.playerId)
-      .order('evaluation_date', { ascending: false })
-      .limit(1),
+    supabase.from('injuries').select('*').eq('player_id', params.playerId),
+    supabase.from('performances').select('*').eq('player_id', params.playerId),
+    supabase.from('evaluations').select('*').eq('player_id', params.playerId).limit(1),
     supabase.from('coaches').select('full_name').eq('id', user.id).single(),
   ]);
 
-  if (pR.error || !pR.data) {
-    return NextResponse.json(
-      { error: 'Player not found' },
-      { status: 404 }
-    );
-  }
-
   const player = pR.data as Player;
+
   const injuries = (iR.data ?? []) as Injury[];
   const performances = (perfR.data ?? []) as Performance[];
   const evaluation = (eR.data?.[0] ?? null) as Evaluation | null;
   const coachName = cR.data?.full_name || user.email || 'Coach';
   const generatedAt = new Date().toLocaleString('en-GB');
 
-  // ✅ IMPORTANT FIX: PlayerReport MUST return a <Document>
+  // @ts-expect-error react-pdf typing mismatch
   const stream = await renderToStream(
-    React.createElement(PlayerReport, {
-      player,
-      injuries,
-      performances,
-      evaluation,
-      coachName,
-      generatedAt,
-    })
+    <PlayerReport
+      player={player}
+      injuries={injuries}
+      performances={performances}
+      evaluation={evaluation}
+      coachName={coachName}
+      generatedAt={generatedAt}
+    />
   );
 
   const chunks: Buffer[] = [];
