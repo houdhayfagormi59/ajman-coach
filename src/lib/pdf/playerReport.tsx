@@ -1,207 +1,71 @@
 import React from 'react';
-import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer';
+import { NextRequest, NextResponse } from 'next/server';
+import { renderToBuffer } from '@react-pdf/renderer';
+import { createClient } from '@/lib/supabase/server';
+import { PlayerReport } from '@/lib/pdf/playerReport';
 import type { Player, Injury, Performance, Evaluation } from '@/lib/types';
 
-const styles = StyleSheet.create({
-  page: { padding: 36, fontSize: 10, fontFamily: 'Helvetica', color: '#0f172a' },
-  header: { marginBottom: 20, borderBottomWidth: 2, borderBottomColor: '#1F4E78', paddingBottom: 12 },
-  title: { fontSize: 22, fontWeight: 700, color: '#1F4E78' },
-  subtitle: { fontSize: 11, color: '#64748b', marginTop: 4 },
-  h2: { fontSize: 13, fontWeight: 700, color: '#1F4E78', marginTop: 16, marginBottom: 6, borderBottomWidth: 1, borderBottomColor: '#e2e8f0', paddingBottom: 3 },
-  row: { flexDirection: 'row', marginBottom: 3 },
-  label: { width: 110, color: '#64748b', fontSize: 9 },
-  value: { flex: 1, fontSize: 10 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  col: { flex: 1, minWidth: '45%' },
-  table: { width: '100%', marginTop: 4 },
-  thead: { flexDirection: 'row', backgroundColor: '#f1f5f9', paddingVertical: 4, paddingHorizontal: 6 },
-  th: { fontSize: 9, fontWeight: 700, color: '#475569' },
-  tr: { flexDirection: 'row', paddingVertical: 4, paddingHorizontal: 6, borderBottomWidth: 0.5, borderBottomColor: '#e2e8f0' },
-  td: { fontSize: 9, color: '#334155' },
-  section: { marginTop: 10, padding: 10, backgroundColor: '#f8fafc', borderRadius: 4, borderLeftWidth: 3, borderLeftColor: '#F4A460' },
-  sectionTitle: { fontSize: 11, fontWeight: 700, color: '#1F4E78', marginBottom: 4 },
-  footer: { position: 'absolute', bottom: 20, left: 36, right: 36, fontSize: 8, color: '#94a3b8', textAlign: 'center', borderTopWidth: 0.5, borderTopColor: '#e2e8f0', paddingTop: 6 },
-  badge: { paddingVertical: 2, paddingHorizontal: 6, borderRadius: 3, fontSize: 9, fontWeight: 700 },
-});
+export async function GET(
+  _: NextRequest,
+  { params }: { params: { playerId: string } }
+) {
+  const supabase = createClient();
 
-function ageFromDOB(dob: string): number {
-  const b = new Date(dob), n = new Date();
-  let a = n.getFullYear() - b.getFullYear();
-  const m = n.getMonth() - b.getMonth();
-  if (m < 0 || (m === 0 && n.getDate() < b.getDate())) a--;
-  return a;
-}
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-export function PlayerReport({
-  player, injuries, performances, evaluation, coachName, generatedAt,
-}: {
-  player: Player;
-  injuries: Injury[];
-  performances: Performance[];
-  evaluation: Evaluation | null;
-  coachName: string;
-  generatedAt: string;
-}) {
-  const totalGoals = performances.reduce((s, p) => s + (p.goals ?? 0), 0);
-  const totalAssists = performances.reduce((s, p) => s + (p.assists ?? 0), 0);
-  const totalPasses = performances.reduce((s, p) => s + (p.passes_completed ?? 0), 0);
-  const totalAttempts = performances.reduce((s, p) => s + (p.passes_attempted ?? 0), 0);
-  const ratings = performances.map((p) => p.rating).filter((r): r is number => r !== null);
-  const avgRating = ratings.length ? (ratings.reduce((s, r) => s + r, 0) / ratings.length).toFixed(2) : '—';
-  const passAcc = totalAttempts ? Math.round((totalPasses / totalAttempts) * 100) : 0;
+  if (!user)
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  return (
-    <Document>
-      <Page size="A4" style={styles.page}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Player Report</Text>
-          <Text style={styles.subtitle}>
-            {player.first_name} {player.last_name} · {player.position} · {player.team}
-          </Text>
-          <Text style={styles.subtitle}>Ajman Club · Prepared by {coachName} · {generatedAt}</Text>
-        </View>
+  const [pR, iR, perfR, eR, cR] = await Promise.all([
+    supabase.from('players').select('*').eq('id', params.playerId).single(),
+    supabase
+      .from('injuries')
+      .select('*')
+      .eq('player_id', params.playerId)
+      .order('injury_date', { ascending: false }),
+    supabase
+      .from('performances')
+      .select('*')
+      .eq('player_id', params.playerId)
+      .order('match_date', { ascending: false }),
+    supabase
+      .from('evaluations')
+      .select('*')
+      .eq('player_id', params.playerId)
+      .order('evaluation_date', { ascending: false })
+      .limit(1),
+    supabase.from('coaches').select('full_name').eq('id', user.id).single(),
+  ]);
 
-        <Text style={styles.h2}>1. Player Information</Text>
-        <View style={styles.grid}>
-          <View style={styles.col}>
-            <View style={styles.row}><Text style={styles.label}>Full name</Text><Text style={styles.value}>{player.first_name} {player.last_name}</Text></View>
-            <View style={styles.row}><Text style={styles.label}>Date of birth</Text><Text style={styles.value}>{player.date_of_birth}</Text></View>
-            <View style={styles.row}><Text style={styles.label}>Age</Text><Text style={styles.value}>{ageFromDOB(player.date_of_birth)}</Text></View>
-            <View style={styles.row}><Text style={styles.label}>Nationality</Text><Text style={styles.value}>{player.nationality || '—'}</Text></View>
-          </View>
-          <View style={styles.col}>
-            <View style={styles.row}><Text style={styles.label}>Position</Text><Text style={styles.value}>{player.position}</Text></View>
-            <View style={styles.row}><Text style={styles.label}>Team</Text><Text style={styles.value}>{player.team}</Text></View>
-            <View style={styles.row}><Text style={styles.label}>Jersey</Text><Text style={styles.value}>{player.jersey_number ?? '—'}</Text></View>
-            <View style={styles.row}><Text style={styles.label}>Status</Text><Text style={styles.value}>{player.status.toUpperCase()}</Text></View>
-          </View>
-          <View style={styles.col}>
-            <View style={styles.row}><Text style={styles.label}>Height</Text><Text style={styles.value}>{player.height_cm ? `${player.height_cm} cm` : '—'}</Text></View>
-            <View style={styles.row}><Text style={styles.label}>Weight</Text><Text style={styles.value}>{player.weight_kg ? `${player.weight_kg} kg` : '—'}</Text></View>
-          </View>
-        </View>
+  if (pR.error || !pR.data) {
+    return NextResponse.json({ error: 'Player not found' }, { status: 404 });
+  }
 
-        <Text style={styles.h2}>2. Match Performance Summary</Text>
-        <View style={styles.grid}>
-          <View style={styles.col}><View style={styles.row}><Text style={styles.label}>Matches played</Text><Text style={styles.value}>{performances.length}</Text></View></View>
-          <View style={styles.col}><View style={styles.row}><Text style={styles.label}>Goals</Text><Text style={styles.value}>{totalGoals}</Text></View></View>
-          <View style={styles.col}><View style={styles.row}><Text style={styles.label}>Assists</Text><Text style={styles.value}>{totalAssists}</Text></View></View>
-          <View style={styles.col}><View style={styles.row}><Text style={styles.label}>Avg rating</Text><Text style={styles.value}>{avgRating}</Text></View></View>
-          <View style={styles.col}><View style={styles.row}><Text style={styles.label}>Pass accuracy</Text><Text style={styles.value}>{passAcc}%</Text></View></View>
-        </View>
+  const player = pR.data as Player;
+  const injuries = (iR.data ?? []) as Injury[];
+  const performances = (perfR.data ?? []) as Performance[];
+  const evaluation = (eR.data?.[0] ?? null) as Evaluation | null;
+  const coachName = cR.data?.full_name || user.email || 'Coach';
+  const generatedAt = new Date().toLocaleString('en-GB');
 
-        {performances.length > 0 && (
-          <>
-            <Text style={{ marginTop: 6, fontSize: 10, fontWeight: 700, color: '#1F4E78' }}>Last matches</Text>
-            <View style={styles.table}>
-              <View style={styles.thead}>
-                <Text style={[styles.th, { width: '18%' }]}>Date</Text>
-                <Text style={[styles.th, { width: '32%' }]}>Opponent</Text>
-                <Text style={[styles.th, { width: '10%' }]}>Min</Text>
-                <Text style={[styles.th, { width: '8%' }]}>G</Text>
-                <Text style={[styles.th, { width: '8%' }]}>A</Text>
-                <Text style={[styles.th, { width: '12%' }]}>Passes</Text>
-                <Text style={[styles.th, { width: '12%' }]}>Rating</Text>
-              </View>
-              {performances.slice(0, 10).map((p) => (
-                <View key={p.id} style={styles.tr}>
-                  <Text style={[styles.td, { width: '18%' }]}>{p.match_date}</Text>
-                  <Text style={[styles.td, { width: '32%' }]}>{p.opponent}</Text>
-                  <Text style={[styles.td, { width: '10%' }]}>{p.minutes_played}</Text>
-                  <Text style={[styles.td, { width: '8%' }]}>{p.goals}</Text>
-                  <Text style={[styles.td, { width: '8%' }]}>{p.assists}</Text>
-                  <Text style={[styles.td, { width: '12%' }]}>{p.passes_completed}/{p.passes_attempted}</Text>
-                  <Text style={[styles.td, { width: '12%' }]}>{p.rating ?? '—'}</Text>
-                </View>
-              ))}
-            </View>
-          </>
-        )}
-
-        <Text style={styles.h2}>3. Technical / Tactical / Physical / Mental Evaluation</Text>
-        {evaluation ? (
-          <View style={styles.grid}>
-            <View style={[styles.section, { flex: 1, minWidth: '45%' }]}>
-              <Text style={styles.sectionTitle}>Technical</Text>
-              <EvalLine label="1st Touch" v={evaluation.tech_first_touch} />
-              <EvalLine label="Passing" v={evaluation.tech_passing} />
-              <EvalLine label="Shooting" v={evaluation.tech_shooting} />
-              <EvalLine label="Dribbling" v={evaluation.tech_dribbling} />
-            </View>
-            <View style={[styles.section, { flex: 1, minWidth: '45%' }]}>
-              <Text style={styles.sectionTitle}>Tactical</Text>
-              <EvalLine label="Positioning" v={evaluation.tac_positioning} />
-              <EvalLine label="Decision making" v={evaluation.tac_decision_making} />
-              <EvalLine label="Game reading" v={evaluation.tac_game_reading} />
-            </View>
-            <View style={[styles.section, { flex: 1, minWidth: '45%' }]}>
-              <Text style={styles.sectionTitle}>Physical</Text>
-              <EvalLine label="Speed" v={evaluation.phy_speed} />
-              <EvalLine label="Strength" v={evaluation.phy_strength} />
-              <EvalLine label="Endurance" v={evaluation.phy_endurance} />
-            </View>
-            <View style={[styles.section, { flex: 1, minWidth: '45%' }]}>
-              <Text style={styles.sectionTitle}>Mental</Text>
-              <EvalLine label="Concentration" v={evaluation.men_concentration} />
-              <EvalLine label="Confidence" v={evaluation.men_confidence} />
-              <EvalLine label="Teamwork" v={evaluation.men_teamwork} />
-            </View>
-          </View>
-        ) : (
-          <Text style={{ fontSize: 10, color: '#64748b', marginTop: 4 }}>No evaluation recorded yet.</Text>
-        )}
-
-        {evaluation && (
-          <>
-            {evaluation.strengths && (
-              <View style={styles.section}><Text style={styles.sectionTitle}>Strengths</Text><Text style={styles.td}>{evaluation.strengths}</Text></View>
-            )}
-            {evaluation.areas_to_improve && (
-              <View style={styles.section}><Text style={styles.sectionTitle}>Areas to improve</Text><Text style={styles.td}>{evaluation.areas_to_improve}</Text></View>
-            )}
-            {evaluation.general_notes && (
-              <View style={styles.section}><Text style={styles.sectionTitle}>General notes</Text><Text style={styles.td}>{evaluation.general_notes}</Text></View>
-            )}
-          </>
-        )}
-
-        <Text style={styles.h2}>4. Injury History</Text>
-        {injuries.length === 0 ? (
-          <Text style={{ fontSize: 10, color: '#64748b' }}>No injuries recorded.</Text>
-        ) : (
-          <View style={styles.table}>
-            <View style={styles.thead}>
-              <Text style={[styles.th, { width: '18%' }]}>Date</Text>
-              <Text style={[styles.th, { width: '28%' }]}>Type</Text>
-              <Text style={[styles.th, { width: '20%' }]}>Body part</Text>
-              <Text style={[styles.th, { width: '14%' }]}>Severity</Text>
-              <Text style={[styles.th, { width: '20%' }]}>Status</Text>
-            </View>
-            {injuries.map((i) => (
-              <View key={i.id} style={styles.tr}>
-                <Text style={[styles.td, { width: '18%' }]}>{i.injury_date}</Text>
-                <Text style={[styles.td, { width: '28%' }]}>{i.injury_type}</Text>
-                <Text style={[styles.td, { width: '20%' }]}>{i.body_part}</Text>
-                <Text style={[styles.td, { width: '14%' }]}>{i.severity}</Text>
-                <Text style={[styles.td, { width: '20%' }]}>{i.status}</Text>
-              </View>
-            ))}
-          </View>
-        )}
-
-        <Text style={styles.footer} fixed>
-          Ajman Coach · Confidential player report · Generated {generatedAt}
-        </Text>
-      </Page>
-    </Document>
+  // ✅ FIXED: renderToBuffer (NOT stream)
+  const pdfBuffer = await renderToBuffer(
+    <PlayerReport
+      player={player}
+      injuries={injuries}
+      performances={performances}
+      evaluation={evaluation}
+      coachName={coachName}
+      generatedAt={generatedAt}
+    />
   );
-}
 
-function EvalLine({ label, v }: { label: string; v: number | null }) {
-  return (
-    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 2 }}>
-      <Text style={{ fontSize: 9, color: '#475569' }}>{label}</Text>
-      <Text style={{ fontSize: 9, fontWeight: 700 }}>{v !== null ? `${v}/10` : '—'}</Text>
-    </View>
-  );
+  return new NextResponse(pdfBuffer, {
+    headers: {
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="${player.last_name}-report.pdf"`,
+    },
+  });
 }
