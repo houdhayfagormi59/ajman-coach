@@ -32,7 +32,7 @@ function ageFromDOB(dob: string): number {
   return a;
 }
 
-export function PlayerReport({
+export default function PlayerReport({
   player, injuries, performances, evaluation, coachName, generatedAt,
 }: {
   player: Player;
