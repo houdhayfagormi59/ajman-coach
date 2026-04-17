@@ -1,15 +1,22 @@
-export const runtime = 'nodejs';
-import React from 'react';
 import { NextRequest, NextResponse } from 'next/server';
 import { renderToStream } from '@react-pdf/renderer';
 import { createClient } from '@/lib/supabase/server';
-import { PlayerReport } from '@/lib/pdf/playerReport';
+import PlayerReport from '@/lib/pdf/playerReport';
 import type { Player, Injury, Performance, Evaluation } from '@/lib/types';
 
-export async function GET(_: NextRequest, { params }: { params: { playerId: string } }) {
+export const runtime = 'nodejs';
+
+export async function GET(
+  _: NextRequest,
+  { params }: { params: { playerId: string } }
+) {
   const supabase = createClient();
+
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
 
   const [pR, iR, perfR, eR, cR] = await Promise.all([
     supabase.from('players').select('*').eq('id', params.playerId).single(),
@@ -19,30 +26,34 @@ export async function GET(_: NextRequest, { params }: { params: { playerId: stri
     supabase.from('coaches').select('full_name').eq('id', user.id).single(),
   ]);
 
-  if (pR.error || !pR.data) return NextResponse.json({ error: 'Player not found' }, { status: 404 });
+  if (pR.error || !pR.data) {
+    return NextResponse.json({ error: 'Player not found' }, { status: 404 });
+  }
 
   const player = pR.data as Player;
   const injuries = (iR.data ?? []) as Injury[];
   const performances = (perfR.data ?? []) as Performance[];
   const evaluation = (eR.data?.[0] ?? null) as Evaluation | null;
+
   const coachName = cR.data?.full_name || user.email || 'Coach';
   const generatedAt = new Date().toLocaleString('en-GB');
 
-  const { default: PlayerReport } = await import('@/lib/pdf/playerReport');
-
-const stream = await renderToStream(
-  React.createElement(PlayerReport, {
-    player,
-    injuries,
-    performances,
-    evaluation,
-    coachName,
-    generatedAt,
-  })
-);
+  const stream = await renderToStream(
+    <PlayerReport
+      player={player}
+      injuries={injuries}
+      performances={performances}
+      evaluation={evaluation}
+      coachName={coachName}
+      generatedAt={generatedAt}
+    />
+  );
 
   const chunks: Buffer[] = [];
-  for await (const chunk of stream as unknown as AsyncIterable<Buffer>) chunks.push(chunk);
+  for await (const chunk of stream as any) {
+    chunks.push(Buffer.from(chunk));
+  }
+
   const pdfBuffer = Buffer.concat(chunks);
 
   return new NextResponse(pdfBuffer, {
