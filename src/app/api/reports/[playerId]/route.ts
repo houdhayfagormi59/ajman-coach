@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { renderToStream } from '@react-pdf/renderer';
 import { createClient } from '@/lib/supabase/server';
 import { PlayerReport } from '@/lib/pdf/playerReport';
+import type { Player, Injury, Performance, Evaluation } from '@/lib/types';
 
 export async function GET(_: NextRequest, { params }: { params: { playerId: string } }) {
   const supabase = createClient();
