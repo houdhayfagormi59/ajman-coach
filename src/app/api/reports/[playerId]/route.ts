@@ -12,6 +12,7 @@ export async function GET(
   const supabase = createClient();
 
   const { data: { user } } = await supabase.auth.getUser();
+
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
@@ -36,20 +37,23 @@ export async function GET(
   const coachName = cR.data?.full_name || user.email || 'Coach';
   const generatedAt = new Date().toLocaleString('en-GB');
 
+  // ✅ THIS IS THE MISSING PART (YOU HAD NOTHING HERE)
   const stream = await renderToStream(
-  <PlayerReport
-    player={player}
-    injuries={injuries}
-    performances={performances}
-    evaluation={evaluation}
-    coachName={coachName}
-    generatedAt={generatedAt}
-  />
-);
+    React.createElement(PlayerReport, {
+      player,
+      injuries,
+      performances,
+      evaluation,
+      coachName,
+      generatedAt,
+    })
+  );
 
+  // Convert stream → buffer (required for NextResponse)
   const chunks: Buffer[] = [];
-  for await (const chunk of stream as unknown as AsyncIterable<Buffer>) {
-    chunks.push(chunk);
+
+  for await (const chunk of stream as any) {
+    chunks.push(Buffer.from(chunk));
   }
 
   const pdfBuffer = Buffer.concat(chunks);
