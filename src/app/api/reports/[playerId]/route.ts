@@ -37,14 +37,14 @@ export async function GET(
   const generatedAt = new Date().toLocaleString('en-GB');
 
   const stream = await renderToStream(
-  React.createElement(PlayerReport as any, {
-    player,
-    injuries,
-    performances,
-    evaluation,
-    coachName,
-    generatedAt,
-  })
+  <PlayerReport
+    player={player}
+    injuries={injuries}
+    performances={performances}
+    evaluation={evaluation}
+    coachName={coachName}
+    generatedAt={generatedAt}
+  />
 );
 
   const chunks: Buffer[] = [];
