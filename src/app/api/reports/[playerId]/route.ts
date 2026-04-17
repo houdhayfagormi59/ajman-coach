@@ -37,15 +37,15 @@ export async function GET(
   const generatedAt = new Date().toLocaleString('en-GB');
 
   const stream = await renderToStream(
-    React.createElement(PlayerReport, {
-      player,
-      injuries,
-      performances,
-      evaluation,
-      coachName,
-      generatedAt,
-    })
-  );
+  React.createElement(PlayerReport as any, {
+    player,
+    injuries,
+    performances,
+    evaluation,
+    coachName,
+    generatedAt,
+  })
+);
 
   const chunks: Buffer[] = [];
   for await (const chunk of stream as unknown as AsyncIterable<Buffer>) {
