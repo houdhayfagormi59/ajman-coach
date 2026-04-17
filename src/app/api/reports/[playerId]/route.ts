@@ -1,4 +1,5 @@
 export const runtime = 'nodejs';
+import React from 'react';
 import { NextRequest, NextResponse } from 'next/server';
 import { renderToStream } from '@react-pdf/renderer';
 import { createClient } from '@/lib/supabase/server';
@@ -27,16 +28,18 @@ export async function GET(_: NextRequest, { params }: { params: { playerId: stri
   const coachName = cR.data?.full_name || user.email || 'Coach';
   const generatedAt = new Date().toLocaleString('en-GB');
 
-  const stream = await renderToStream(
-    <PlayerReport
-      player={player}
-      injuries={injuries}
-      performances={performances}
-      evaluation={evaluation}
-      coachName={coachName}
-      generatedAt={generatedAt}
-    />
-  );
+  const { default: PlayerReport } = await import('@/lib/pdf/playerReport');
+
+const stream = await renderToStream(
+  React.createElement(PlayerReport, {
+    player,
+    injuries,
+    performances,
+    evaluation,
+    coachName,
+    generatedAt,
+  })
+);
 
   const chunks: Buffer[] = [];
   for await (const chunk of stream as unknown as AsyncIterable<Buffer>) chunks.push(chunk);
