@@ -1,8 +1,8 @@
+import React from 'react';
 import { NextRequest, NextResponse } from 'next/server';
 import { renderToStream } from '@react-pdf/renderer';
 import { createClient } from '@/lib/supabase/server';
 import { PlayerReport } from '@/lib/pdf/playerReport';
-import type { Player, Injury, Performance, Evaluation } from '@/lib/types';
 
 export async function GET(_: NextRequest, { params }: { params: { playerId: string } }) {
   const supabase = createClient();
@@ -27,14 +27,14 @@ export async function GET(_: NextRequest, { params }: { params: { playerId: stri
   const generatedAt = new Date().toLocaleString('en-GB');  
 
 const stream = await renderToStream(
-  <PlayerReport
-    player={player}
-    injuries={injuries}
-    performances={performances}
-    evaluation={evaluation}
-    coachName={coachName}
-    generatedAt={generatedAt}
-  />
+  React.createElement(PlayerReport, {
+    player,
+    injuries,
+    performances,
+    evaluation,
+    coachName,
+    generatedAt,
+  })
 );
 
   const chunks: Buffer[] = [];
