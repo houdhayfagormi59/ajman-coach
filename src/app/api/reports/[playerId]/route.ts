@@ -1,3 +1,4 @@
+import React from 'react';
 import { NextRequest, NextResponse } from 'next/server';
 import { renderToStream } from '@react-pdf/renderer';
 import { createClient } from '@/lib/supabase/server';
@@ -24,9 +25,7 @@ export async function GET(_: NextRequest, { params }: { params: { playerId: stri
   const performances = (perfR.data ?? []) as Performance[];
   const evaluation = (eR.data?.[0] ?? null) as Evaluation | null;
   const coachName = cR.data?.full_name || user.email || 'Coach';
-  const generatedAt = new Date().toLocaleString('en-GB');
-
-  import React from 'react';
+  const generatedAt = new Date().toLocaleString('en-GB');  
 
 const stream = await renderToStream(
   React.createElement(PlayerReport, {
